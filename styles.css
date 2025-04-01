@@ -1,0 +1,118 @@
+body {
+  font-family: Arial, sans-serif;
+  width: 400px;
+  margin: 0;
+  padding: 15px;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+h1 {
+  font-size: 20px;
+  margin: 0 0 15px 0;
+  color: #333;
+  text-align: center;
+}
+
+#task-container {
+  background-color: #f5f5f5;
+  padding: 10px;
+  border-radius: 5px;
+  margin-bottom: 15px;
+}
+
+#current-task {
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+#controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.button {
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s;
+}
+
+.primary {
+  background-color: #4285f4;
+  color: white;
+}
+
+.primary:hover {
+  background-color: #357ae8;
+}
+
+.danger {
+  background-color: #ea4335;
+  color: white;
+}
+
+.danger:hover {
+  background-color: #d33426;
+}
+
+.success {
+  background-color: #34a853;
+  color: white;
+}
+
+.success:hover {
+  background-color: #2d9249;
+}
+
+.button:disabled {
+  background-color: #cccccc;
+  color: #666666;
+  cursor: not-allowed;
+}
+
+#recording-status {
+  margin-top: 15px;
+  text-align: center;
+}
+
+#timer {
+  font-size: 24px;
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+#loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
+.spinner {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #3498db;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

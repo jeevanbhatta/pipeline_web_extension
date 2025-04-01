@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Screen Recording Data Collector</title>
+  <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Data Collection Task</h1>
+    
+    <div id="auth-section">
+      <button id="authorize-button">Sign in with Google</button>
+      <div id="user-info" style="display: none;">
+        <p>Signed in as: <span id="user-email"></span></p>
+      </div>
+    </div>
+    
+    <div id="task-section" style="display: none;">
+      <div id="task-container">
+        <h3>Current Task:</h3>
+        <p id="current-task">Loading task...</p>
+      </div>
+      
+      <div id="controls">
+        <button id="start-recording" class="button primary">Start Recording</button>
+        <button id="stop-recording" class="button danger" disabled>Stop Recording</button>
+        <button id="submit-recording" class="button success" disabled>Submit Recording</button>
+        <button id="next-task" class="button" disabled>Next Task</button>
+      </div>
+      
+      <div id="recording-status">
+        <p id="status-message">Not recording</p>
+        <div id="timer" style="display: none;">00:00</div>
+      </div>
+    </div>
+    
+    <div id="loading-overlay" style="display: none;">
+      <div class="spinner"></div>
+      <p id="loading-message">Processing...</p>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+  <script src="recording.js"></script>
+  <script src="tasks.js"></script>
+  <script src="storage.js"></script>
+</body>
+</html>
