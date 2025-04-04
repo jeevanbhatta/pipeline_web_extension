@@ -6,6 +6,55 @@ let audioStream;
 let screenStream;
 let combinedStream;
 
+// Request microphone permission explicitly with a dialog
+function requestMicrophonePermission() {
+  return new Promise((resolve, reject) => {
+    const permissionStatus = document.getElementById('status-message');
+    permissionStatus.textContent = 'Requesting microphone access...';
+    
+    navigator.permissions.query({ name: 'microphone' })
+      .then(result => {
+        if (result.state === 'granted') {
+          permissionStatus.textContent = 'Microphone permission already granted';
+          resolve(true);
+        } else if (result.state === 'prompt') {
+          // This will trigger the permission dialog
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+              // Stop the stream immediately, we just needed the permission
+              stream.getTracks().forEach(track => track.stop());
+              permissionStatus.textContent = 'Microphone permission granted';
+              resolve(true);
+            })
+            .catch(err => {
+              console.error('Microphone permission denied:', err);
+              permissionStatus.textContent = 'Microphone permission denied';
+              reject(err);
+            });
+        } else if (result.state === 'denied') {
+          permissionStatus.textContent = 'Microphone permission blocked';
+          const error = new Error('Microphone permission blocked in browser settings');
+          console.error(error);
+          reject(error);
+        }
+      })
+      .catch(err => {
+        console.error('Error checking permission status:', err);
+        // Fall back to direct request if permissions API fails
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(stream => {
+            stream.getTracks().forEach(track => track.stop());
+            permissionStatus.textContent = 'Microphone permission granted';
+            resolve(true);
+          })
+          .catch(err => {
+            permissionStatus.textContent = 'Microphone permission denied';
+            reject(err);
+          });
+      });
+  });
+}
+
 // Start screen and audio recording
 function startRecording() {
   const startButton = document.getElementById('start-recording');
@@ -19,13 +68,10 @@ function startRecording() {
   // Display loading overlay while setting up recording
   showLoadingOverlay('Setting up recording...');
   
-  // First, check if we have audio permission before attempting screen capture
-  navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(function(audioStream) {
-      // We got audio permission, now we can request screen capture
-      audioStream.getTracks().forEach(track => track.stop()); // Stop temporary audio stream
-      
-      // Request screen capture
+  // First explicitly request microphone permission with a dialog
+  requestMicrophonePermission()
+    .then(() => {
+      // Now request screen capture
       chrome.desktopCapture.chooseDesktopMedia(
         ['screen', 'window', 'tab'], 
         function(streamId) {
@@ -51,7 +97,7 @@ function startRecording() {
             .then(function(stream) {
               screenStream = stream;
               
-              // Now request audio again for recording
+              // Now request audio again for actual recording
               return navigator.mediaDevices.getUserMedia({ 
                 audio: {
                   echoCancellation: true,
@@ -62,6 +108,9 @@ function startRecording() {
             })
             .then(function(stream) {
               audioStream = stream;
+              
+              // Add audio visualization indicator
+              showAudioLevelIndicator(audioStream);
               
               // Combine screen and audio streams
               const tracks = [...screenStream.getTracks(), ...audioStream.getAudioTracks()];
@@ -80,7 +129,14 @@ function startRecording() {
                 });
               } catch (e) {
                 console.warn('VP9/Opus not supported, falling back to default codec', e);
-                mediaRecorder = new MediaRecorder(combinedStream);
+                try {
+                  mediaRecorder = new MediaRecorder(combinedStream, {
+                    mimeType: 'video/webm',
+                  });
+                } catch (e2) {
+                  console.warn('WebM not supported, trying basic MediaRecorder', e2);
+                  mediaRecorder = new MediaRecorder(combinedStream);
+                }
               }
               
               mediaRecorder.ondataavailable = handleDataAvailable;
@@ -110,23 +166,36 @@ function startRecording() {
       );
     })
     .catch(function(audioError) {
-      console.error('Audio permission denied:', audioError);
+      console.error('Microphone permission error:', audioError);
       hideLoadingOverlay();
-      statusMessage.textContent = 'Please allow microphone access to record audio';
+      statusMessage.textContent = 'Microphone access is required';
       startButton.disabled = false;
       
-      // Show a more helpful error message
+      // Create more detailed help message with instructions
       const errorDiv = document.createElement('div');
       errorDiv.className = 'error-message';
-      errorDiv.innerHTML = 'Microphone access is required for recording.<br>Please check your browser settings and ensure microphone permissions are allowed for this extension.';
-      startButton.parentNode.insertBefore(errorDiv, startButton.nextSibling);
+      errorDiv.innerHTML = `
+        <strong>Microphone access is required for recording.</strong><br>
+        To fix this issue:
+        <ol>
+          <li>Click the lock/info icon in your browser's address bar</li>
+          <li>Find "Microphone" in the permissions list</li>
+          <li>Set it to "Allow"</li>
+          <li>Reload this page and try again</li>
+        </ol>
+        <p>If you don't see a permission prompt, your browser settings may be blocking permission requests.</p>
+      `;
       
-      // Clean up error after 10 seconds
+      // Find a good place to insert the error message
+      const container = document.querySelector('#recording-status') || startButton.parentNode;
+      container.appendChild(errorDiv);
+      
+      // Clean up error after 20 seconds
       setTimeout(() => {
         if (errorDiv.parentNode) {
           errorDiv.parentNode.removeChild(errorDiv);
         }
-      }, 10000);
+      }, 20000);
     });
 }
 
@@ -241,4 +310,102 @@ function showLoadingOverlay(message) {
 // Hide loading overlay
 function hideLoadingOverlay() {
   document.getElementById('loading-overlay').style.display = 'none';
+}
+
+// Add audio level visualization
+function showAudioLevelIndicator(audioStream) {
+  try {
+    // Create audio level indicator if it doesn't exist
+    let levelIndicator = document.getElementById('audio-level-indicator');
+    if (!levelIndicator) {
+      const recordingStatus = document.getElementById('recording-status');
+      
+      const levelContainer = document.createElement('div');
+      levelContainer.style.marginTop = '10px';
+      levelContainer.style.textAlign = 'center';
+      
+      levelIndicator = document.createElement('div');
+      levelIndicator.id = 'audio-level-indicator';
+      levelIndicator.style.height = '20px';
+      levelIndicator.style.width = '100%';
+      levelIndicator.style.backgroundColor = '#f0f0f0';
+      levelIndicator.style.borderRadius = '10px';
+      levelIndicator.style.overflow = 'hidden';
+      levelIndicator.style.position = 'relative';
+      
+      const levelBar = document.createElement('div');
+      levelBar.id = 'audio-level-bar';
+      levelBar.style.height = '100%';
+      levelBar.style.width = '0%';
+      levelBar.style.backgroundColor = '#34a853';
+      levelBar.style.position = 'absolute';
+      levelBar.style.left = '0';
+      levelBar.style.transition = 'width 0.1s';
+      
+      const levelText = document.createElement('div');
+      levelText.id = 'audio-level-text';
+      levelText.style.position = 'absolute';
+      levelText.style.width = '100%';
+      levelText.style.textAlign = 'center';
+      levelText.style.color = '#333';
+      levelText.style.fontWeight = 'bold';
+      levelText.style.fontSize = '12px';
+      levelText.textContent = 'Audio Level';
+      
+      levelIndicator.appendChild(levelBar);
+      levelIndicator.appendChild(levelText);
+      levelContainer.appendChild(levelIndicator);
+      recordingStatus.appendChild(levelContainer);
+    }
+    
+    // Set up audio analyzer
+    const audioContext = new AudioContext();
+    const analyser = audioContext.createAnalyser();
+    const microphone = audioContext.createMediaStreamSource(audioStream);
+    
+    microphone.connect(analyser);
+    analyser.fftSize = 256;
+    
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    
+    // Update the level indicator
+    const levelBar = document.getElementById('audio-level-bar');
+    
+    function updateAudioLevel() {
+      if (!levelBar || document.getElementById('stop-recording').disabled) {
+        return; // Stop updating when recording is stopped
+      }
+      
+      analyser.getByteFrequencyData(dataArray);
+      
+      // Calculate average level
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        sum += dataArray[i];
+      }
+      const average = sum / bufferLength;
+      
+      // Scale the level to 0-100%
+      const scaledLevel = Math.min(100, Math.max(0, average * 100 / 255));
+      
+      // Update the level bar
+      levelBar.style.width = scaledLevel + '%';
+      
+      // Change color based on level
+      if (scaledLevel < 10) {
+        levelBar.style.backgroundColor = '#ea4335'; // Red for low level
+      } else if (scaledLevel < 30) {
+        levelBar.style.backgroundColor = '#fbbc05'; // Yellow for medium level
+      } else {
+        levelBar.style.backgroundColor = '#34a853'; // Green for good level
+      }
+      
+      requestAnimationFrame(updateAudioLevel);
+    }
+    
+    updateAudioLevel();
+  } catch (e) {
+    console.warn('Could not create audio level indicator:', e);
+  }
 }
