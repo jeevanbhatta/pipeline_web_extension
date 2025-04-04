@@ -99,18 +99,36 @@ function authenticate() {
   return new Promise((resolve, reject) => {
     console.log('Starting authentication with client ID:', CLIENT_ID);
     
-    chrome.identity.getAuthToken({interactive: true}, function(token) {
+    // Use a more precise options object with correct scopes
+    const authOptions = {
+      interactive: true,
+      scopes: SCOPES
+    };
+    
+    chrome.identity.getAuthToken(authOptions, function(token) {
       if (chrome.runtime.lastError) {
         const error = chrome.runtime.lastError;
-        console.error('Chrome identity error:', error);
+        console.error('Chrome identity error:', JSON.stringify(error));
         
-        // Specific handling for common errors
-        if (error.message && error.message.includes('bad client id')) {
-          reject(new Error('OAuth2 request failed: The Client ID in manifest.json is invalid or malformed'));
-        } else if (error.message && error.message.includes('not authorized')) {
-          reject(new Error('Your Google account is not authorized to use this application'));
+        // Get the actual error message - lastError can be an object with message property or a string
+        let errorMessage = '';
+        if (typeof error === 'object' && error !== null) {
+          errorMessage = error.message || JSON.stringify(error);
         } else {
-          reject(new Error(error.message || 'Authentication failed'));
+          errorMessage = String(error);
+        }
+        
+        // Check specific error types more accurately
+        if (errorMessage.includes('bad client id')) {
+          reject(new Error('OAuth2 request failed: The Client ID in manifest.json is invalid or malformed'));
+        } else if (errorMessage.includes('not authorized')) {
+          reject(new Error('Your Google account is not authorized to use this application'));
+        } else if (errorMessage.includes('OAuth2 not granted or revoked')) {
+          reject(new Error('You declined to give this extension permission to access your Google account'));
+        } else if (errorMessage.includes('Authorization page could not be loaded')) {
+          reject(new Error('Google authorization page could not be loaded. Check your internet connection'));
+        } else {
+          reject(new Error(errorMessage || 'Authentication failed due to an unknown error'));
         }
       } else if (!token) {
         reject(new Error('No token returned from authentication'));

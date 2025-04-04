@@ -7,8 +7,7 @@
     "activeTab",
     "storage",
     "desktopCapture",
-    "identity",
-    "identity.email"
+    "identity"
   ],
   "host_permissions": [
     "https://*.googleapis.com/*"
@@ -32,8 +31,9 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   },
+  "key": "${EXTENSION_KEY}",
   "oauth2": {
-    "client_id": "${CLIENT_ID}",
+    "client_id": "58737123260-3bulnlhu4akoipj999tuo2dstpbo61vg.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile"
