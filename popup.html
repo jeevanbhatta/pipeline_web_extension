@@ -3,6 +3,18 @@
 <head>
   <title>Screen Recording Data Collector</title>
   <link rel="stylesheet" type="text/css" href="styles.css">
+  <style>
+    body {
+      min-width: 400px;
+      min-height: 500px;
+    }
+    
+    /* Added to make this work in both popup and tab modes */
+    .container {
+      margin: 0 auto;
+      max-width: 500px;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -38,6 +50,10 @@
     <div id="loading-overlay" style="display: none;">
       <div class="spinner"></div>
       <p id="loading-message">Processing...</p>
+    </div>
+    
+    <div id="open-as-tab" style="text-align: center; margin-top: 15px;">
+      <button id="open-tab-button" class="button">Open in New Tab</button>
     </div>
   </div>
 

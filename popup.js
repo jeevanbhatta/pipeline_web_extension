@@ -70,6 +70,22 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
+  // Handle "Open in Tab" button
+  const openTabButton = document.getElementById('open-tab-button');
+  
+  // Hide the button if we're already in a tab
+  if (window.location.protocol === 'chrome-extension:' && !chrome.action) {
+    // We're already in a tab, hide the button
+    openTabButton.style.display = 'none';
+  }
+  
+  openTabButton.addEventListener('click', function() {
+    // Open the extension in a new tab
+    chrome.tabs.create({ url: chrome.runtime.getURL('popup.html') });
+    // Close the popup
+    window.close();
+  });
+  
   // Initialize buttons
   const startRecordingButton = document.getElementById('start-recording');
   const stopRecordingButton = document.getElementById('stop-recording');

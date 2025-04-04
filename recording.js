@@ -19,72 +19,115 @@ function startRecording() {
   // Display loading overlay while setting up recording
   showLoadingOverlay('Setting up recording...');
   
-  // Request screen capture
-  chrome.desktopCapture.chooseDesktopMedia(
-    ['screen', 'window', 'tab'], 
-    function(streamId) {
-      if (!streamId) {
-        hideLoadingOverlay();
-        statusMessage.textContent = 'Screen capture cancelled';
-        startButton.disabled = false;
-        return;
-      }
+  // First, check if we have audio permission before attempting screen capture
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(function(audioStream) {
+      // We got audio permission, now we can request screen capture
+      audioStream.getTracks().forEach(track => track.stop()); // Stop temporary audio stream
       
-      const constraints = {
-        audio: false,
-        video: {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: streamId
+      // Request screen capture
+      chrome.desktopCapture.chooseDesktopMedia(
+        ['screen', 'window', 'tab'], 
+        function(streamId) {
+          if (!streamId) {
+            hideLoadingOverlay();
+            statusMessage.textContent = 'Screen capture cancelled';
+            startButton.disabled = false;
+            return;
           }
+          
+          const constraints = {
+            audio: false,
+            video: {
+              mandatory: {
+                chromeMediaSource: 'desktop',
+                chromeMediaSourceId: streamId
+              }
+            }
+          };
+          
+          // Get screen stream
+          navigator.mediaDevices.getUserMedia(constraints)
+            .then(function(stream) {
+              screenStream = stream;
+              
+              // Now request audio again for recording
+              return navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  sampleRate: 44100
+                }
+              });
+            })
+            .then(function(stream) {
+              audioStream = stream;
+              
+              // Combine screen and audio streams
+              const tracks = [...screenStream.getTracks(), ...audioStream.getAudioTracks()];
+              combinedStream = new MediaStream(tracks);
+              
+              // Log the tracks to verify both audio and video are present
+              console.log('Tracks in combined stream:', tracks.map(t => `${t.kind}: ${t.label} (enabled: ${t.enabled})`));
+              
+              // Create media recorder with better codec support
+              try {
+                // Try with best quality first
+                mediaRecorder = new MediaRecorder(combinedStream, {
+                  mimeType: 'video/webm; codecs=vp9,opus',
+                  videoBitsPerSecond: 3000000,
+                  audioBitsPerSecond: 128000
+                });
+              } catch (e) {
+                console.warn('VP9/Opus not supported, falling back to default codec', e);
+                mediaRecorder = new MediaRecorder(combinedStream);
+              }
+              
+              mediaRecorder.ondataavailable = handleDataAvailable;
+              mediaRecorder.onstop = handleRecordingStopped;
+              
+              // Start recording
+              recordedChunks = [];
+              mediaRecorder.start(100);
+              
+              // Update UI
+              startTime = new Date();
+              timer.style.display = 'block';
+              timerInterval = setInterval(updateTimer, 1000);
+              
+              statusMessage.textContent = 'Recording in progress...';
+              stopButton.disabled = false;
+              
+              hideLoadingOverlay();
+            })
+            .catch(function(error) {
+              console.error('Error starting recording:', error);
+              statusMessage.textContent = 'Error: ' + error.message;
+              startButton.disabled = false;
+              hideLoadingOverlay();
+            });
         }
-      };
+      );
+    })
+    .catch(function(audioError) {
+      console.error('Audio permission denied:', audioError);
+      hideLoadingOverlay();
+      statusMessage.textContent = 'Please allow microphone access to record audio';
+      startButton.disabled = false;
       
-      // Get screen stream
-      navigator.mediaDevices.getUserMedia(constraints)
-        .then(function(stream) {
-          screenStream = stream;
-          
-          // Get audio stream
-          return navigator.mediaDevices.getUserMedia({ audio: true });
-        })
-        .then(function(stream) {
-          audioStream = stream;
-          
-          // Combine screen and audio streams
-          const tracks = [...screenStream.getTracks(), ...audioStream.getAudioTracks()];
-          combinedStream = new MediaStream(tracks);
-          
-          // Create media recorder
-          mediaRecorder = new MediaRecorder(combinedStream, {
-            mimeType: 'video/webm; codecs=vp9'
-          });
-          
-          mediaRecorder.ondataavailable = handleDataAvailable;
-          mediaRecorder.onstop = handleRecordingStopped;
-          
-          // Start recording
-          recordedChunks = [];
-          mediaRecorder.start(100);
-          
-          // Update UI
-          startTime = new Date();
-          timer.style.display = 'block';
-          timerInterval = setInterval(updateTimer, 1000);
-          
-          statusMessage.textContent = 'Recording in progress...';
-          stopButton.disabled = false;
-          
-          hideLoadingOverlay();
-        })
-        .catch(function(error) {
-          console.error('Error starting recording:', error);
-          statusMessage.textContent = 'Error: ' + error.message;
-          startButton.disabled = false;
-          hideLoadingOverlay();
-        });
-    }
-  );
+      // Show a more helpful error message
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'error-message';
+      errorDiv.innerHTML = 'Microphone access is required for recording.<br>Please check your browser settings and ensure microphone permissions are allowed for this extension.';
+      startButton.parentNode.insertBefore(errorDiv, startButton.nextSibling);
+      
+      // Clean up error after 10 seconds
+      setTimeout(() => {
+        if (errorDiv.parentNode) {
+          errorDiv.parentNode.removeChild(errorDiv);
+        }
+      }, 10000);
+    });
 }
 
 // Stop recording
