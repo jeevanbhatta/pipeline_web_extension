@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OAuth Configuration Helper</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1, h2, h3 {
+      color: #4285f4;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    .important {
+      background-color: #fdf4e8;
+      border-left: 4px solid #fbbc05;
+      padding: 10px;
+      margin: 15px 0;
+    }
+    code {
+      background-color: #f5f5f5;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+    button {
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px 0;
+    }
+    button:hover {
+      background-color: #357ae8;
+    }
+    .result {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>OAuth Configuration Helper</h1>
+  
+  <div class="important">
+    <h3>Important Notes</h3>
+    <p>For Google OAuth to work properly with Chrome extensions:</p>
+    <ul>
+      <li>Your client ID MUST end with <code>.apps.googleusercontent.com</code></li>
+      <li>The Application ID in Google Cloud Console MUST match your extension ID</li>
+      <li>The OAuth consent screen MUST be published (at least for testing)</li>
+      <li>You must add your Google account as a test user</li>
+    </ul>
+  </div>
+  
+  <h2>Extension Information</h2>
+  
+  <button id="get-extension-id">Show Extension ID</button>
+  <div id="extension-id-result" class="result"></div>
+  
+  <button id="get-manifest-info">Show Manifest OAuth Settings</button>
+  <div id="manifest-result" class="result"></div>
+  
+  <button id="get-redirect-url">Show Redirect URL</button>
+  <div id="redirect-result" class="result"></div>
+  
+  <h2>Authentication</h2>
+  
+  <button id="clear-tokens">Clear Auth Tokens</button>
+  <div id="clear-result" class="result"></div>
+  
+  <button id="test-auth">Test Authentication (Interactive)</button>
+  <div id="auth-result" class="result"></div>
+  
+  <h2>Google API Configuration Checklist</h2>
+  
+  <ol>
+    <li>In Google Cloud Console:
+      <ul>
+        <li>Create OAuth client ID with type <strong>Chrome App</strong></li>
+        <li>Enter your extension ID as the Application ID</li>
+        <li>Enable the People API</li>
+      </ul>
+    </li>
+    <li>In your extension:
+      <ul>
+        <li>Make sure oauth2.client_id in manifest.json is correct</li>
+        <li>Check that manifest.json has the necessary permissions and host permissions</li>
+      </ul>
+    </li>
+  </ol>
+  
+  <script>
+    // Show extension ID
+    document.getElementById('get-extension-id').addEventListener('click', function() {
+      const result = document.getElementById('extension-id-result');
+      result.textContent = 'Extension ID: ' + chrome.runtime.id;
+    });
+    
+    // Show manifest OAuth settings
+    document.getElementById('get-manifest-info').addEventListener('click', function() {
+      const result = document.getElementById('manifest-result');
+      
+      chrome.runtime.getManifest().oauth2 
+        ? result.textContent = 'Client ID: ' + chrome.runtime.getManifest().oauth2.client_id + 
+                              '\nScopes: ' + JSON.stringify(chrome.runtime.getManifest().oauth2.scopes)
+        : result.textContent = 'Error: No oauth2 section found in manifest';
+    });
+    
+    // Show redirect URL
+    document.getElementById('get-redirect-url').addEventListener('click', function() {
+      const result = document.getElementById('redirect-result');
+      result.textContent = 'Redirect URL: ' + chrome.identity.getRedirectURL();
+    });
+    
+    // Clear auth tokens
+    document.getElementById('clear-tokens').addEventListener('click', function() {
+      const result = document.getElementById('clear-result');
+      chrome.identity.clearAllCachedAuthTokens(function() {
+        result.textContent = 'Auth tokens cleared successfully. Try authenticating again.';
+      });
+    });
+    
+    // Test authentication
+    document.getElementById('test-auth').addEventListener('click', function() {
+      const result = document.getElementById('auth-result');
+      result.textContent = 'Testing authentication...';
+      
+      chrome.runtime.sendMessage({action: 'authenticate'}, function(response) {
+        if (response && response.success) {
+          result.textContent = 'Authentication successful!\n' + 
+                              'User: ' + response.userInfo.email;
+        } else {
+          result.textContent = 'Authentication failed: ' + 
+                              (response && response.error ? response.error : 'Unknown error');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

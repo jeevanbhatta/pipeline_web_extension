@@ -99,43 +99,45 @@ function authenticate() {
   return new Promise((resolve, reject) => {
     console.log('Starting authentication with client ID:', CLIENT_ID);
     
-    // Use a more precise options object with correct scopes
-    const authOptions = {
-      interactive: true,
-      scopes: SCOPES
-    };
-    
-    chrome.identity.getAuthToken(authOptions, function(token) {
-      if (chrome.runtime.lastError) {
-        const error = chrome.runtime.lastError;
-        console.error('Chrome identity error:', JSON.stringify(error));
-        
-        // Get the actual error message - lastError can be an object with message property or a string
-        let errorMessage = '';
-        if (typeof error === 'object' && error !== null) {
-          errorMessage = error.message || JSON.stringify(error);
+    // First, clear any cached tokens that might be causing issues
+    chrome.identity.clearAllCachedAuthTokens(() => {
+      console.log('Cleared all cached auth tokens');
+      
+      // Now attempt to get a new token with more detailed options
+      const authParams = {
+        interactive: true,
+        // Don't include scopes here, they're defined in the manifest
+      };
+      
+      chrome.identity.getAuthToken(authParams, function(token) {
+        if (chrome.runtime.lastError) {
+          const error = chrome.runtime.lastError;
+          
+          // Log the full error for debugging
+          console.error('Chrome identity raw error:', error);
+          try {
+            console.error('Error details:', JSON.stringify(error));
+          } catch (e) {
+            console.error('Error cannot be stringified');
+          }
+          
+          // Extract error message safely
+          let errorMessage = 'Authentication failed';
+          if (typeof error === 'object' && error !== null && error.message) {
+            errorMessage = error.message;
+          } else if (typeof error === 'string') {
+            errorMessage = error;
+          }
+          
+          console.error('Formatted error message:', errorMessage);
+          reject(new Error(errorMessage));
+        } else if (!token) {
+          reject(new Error('No token returned from authentication'));
         } else {
-          errorMessage = String(error);
+          console.log('Token acquired successfully');
+          resolve(token);
         }
-        
-        // Check specific error types more accurately
-        if (errorMessage.includes('bad client id')) {
-          reject(new Error('OAuth2 request failed: The Client ID in manifest.json is invalid or malformed'));
-        } else if (errorMessage.includes('not authorized')) {
-          reject(new Error('Your Google account is not authorized to use this application'));
-        } else if (errorMessage.includes('OAuth2 not granted or revoked')) {
-          reject(new Error('You declined to give this extension permission to access your Google account'));
-        } else if (errorMessage.includes('Authorization page could not be loaded')) {
-          reject(new Error('Google authorization page could not be loaded. Check your internet connection'));
-        } else {
-          reject(new Error(errorMessage || 'Authentication failed due to an unknown error'));
-        }
-      } else if (!token) {
-        reject(new Error('No token returned from authentication'));
-      } else {
-        console.log('Token acquired successfully');
-        resolve(token);
-      }
+      });
     });
   });
 }
@@ -143,10 +145,20 @@ function authenticate() {
 // Check if user is authenticated
 function checkAuthToken() {
   return new Promise((resolve, reject) => {
-    chrome.identity.getAuthToken({interactive: false}, function(token) {
+    const authParams = {
+      interactive: false
+      // Don't include scopes here, they're defined in the manifest
+    };
+    
+    chrome.identity.getAuthToken(authParams, function(token) {
       if (chrome.runtime.lastError) {
         console.log('Auth check error (not authenticated):', chrome.runtime.lastError);
-        resolve(null); // Not authenticated, but not an error
+        // This is expected for unauthenticated users, so we resolve with null
+        // instead of rejecting with an error
+        resolve(null);
+      } else if (!token) {
+        // No token but also no error - handle as not authenticated
+        resolve(null);
       } else {
         resolve(token);
       }
