@@ -7,8 +7,13 @@
     "activeTab",
     "storage",
     "desktopCapture",
-    "identity"
+    "identity",
+    "windows",
+    "sidePanel"
   ],
+  "side_panel": {
+    "default_path": "popup.html"
+  },
   "host_permissions": [
     "https://*.googleapis.com/*"
   ],

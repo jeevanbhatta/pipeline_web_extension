@@ -92,31 +92,13 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     });
     return false;
   }
-  
-  else if (request.action === 'openPersistentWindow') {
-    console.log('Opening persistent window');
-    
-    // Calculate centered position
-    const width = 500;
-    const height = 600;
-    const left = Math.round((screen.width - width) / 2);
-    const top = Math.round((screen.height - height) / 2);
-    
-    chrome.windows.create({
-      url: chrome.runtime.getURL('popup.html?mode=window'),
-      type: 'popup',
-      width: width,
-      height: height,
-      left: left,
-      top: top,
-      focused: true
-    }, function(win) {
-      // Store the window ID to potentially reference it later
-      chrome.storage.local.set({ persistentWindowId: win.id });
-      sendResponse({ success: true, windowId: win.id });
-    });
-    return true; // Indicates async response
-  }
+
+  // REMOVED the 'openPersistentWindow' handler as it's no longer needed and caused errors
+});
+
+// Open the side panel when the action icon is clicked
+chrome.action.onClicked.addListener((tab) => {
+  chrome.sidePanel.open({ windowId: tab.windowId });
 });
 
 // Authenticate with Google - improved error handling
