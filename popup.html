@@ -4,9 +4,13 @@
   <title>Screen Recording Data Collector</title>
   <link rel="stylesheet" type="text/css" href="styles.css">
   <style>
+    /* Force width to be adaptive in tab mode */
     body {
       min-width: 400px;
-      min-height: 500px;
+      width: auto !important;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
     }
     
     /* Added to make this work in both popup and tab modes */
@@ -52,6 +56,7 @@
       <p id="loading-message">Processing...</p>
     </div>
     
+    <!-- This button will be hidden via JS when auto-redirect is enabled -->
     <div id="open-as-tab" style="text-align: center; margin-top: 15px;">
       <button id="open-tab-button" class="button">Open in New Tab</button>
     </div>

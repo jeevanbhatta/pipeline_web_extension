@@ -7,8 +7,7 @@
     "activeTab",
     "storage",
     "desktopCapture",
-    "identity",
-    "microphone"
+    "identity"
   ],
   "host_permissions": [
     "https://*.googleapis.com/*"
