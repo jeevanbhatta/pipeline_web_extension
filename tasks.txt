@@ -1,0 +1,5 @@
+Task 1: Open a new browser tab and navigate to Wikipedia
+Task 2: Search for 'climate change' and read the first paragraph
+Task 3: Find and click on a link to an article about renewable energy
+Task 4: Create a bookmark for the current page
+Task 5: Go back to the previous page and search for a different topic

@@ -1,17 +1,41 @@
-// Sample tasks - in a real app, these would likely be loaded from a server
-const tasks = [
-  { id: 1, text: "Open a new browser tab and navigate to Wikipedia" },
-  { id: 2, text: "Search for 'climate change' and read the first paragraph" },
-  { id: 3, text: "Find and click on a link to an article about renewable energy" },
-  { id: 4, text: "Create a bookmark for the current page" },
-  { id: 5, text: "Go back to the previous page and search for a different topic" }
-];
-
+// Variable to store tasks
+let tasks = [];
 let currentTaskIndex = 0;
+
+// Load tasks from text file
+function loadTasksFromFile() {
+  return new Promise((resolve, reject) => {
+    fetch('tasks.txt')
+      .then(response => response.text())
+      .then(text => {
+        // Parse tasks (assuming format: "Task X: description")
+        tasks = text.split('\n')
+          .filter(line => line.trim() !== '')
+          .map((line, index) => {
+            const taskText = line.includes(':') ? line.split(':')[1].trim() : line.trim();
+            return { id: index + 1, text: taskText };
+          });
+        
+        console.log('Loaded tasks:', tasks);
+        resolve(tasks);
+      })
+      .catch(error => {
+        console.error('Error loading tasks:', error);
+        // Fallback to default tasks if file can't be loaded
+        tasks = [
+          { id: 1, text: "Open a new browser tab and navigate to Wikipedia" },
+          { id: 2, text: "Search for 'climate change' and read the first paragraph" }
+        ];
+        reject(error);
+      });
+  });
+}
 
 // Initialize tasks
 function initializeTasks() {
-  displayCurrentTask();
+  loadTasksFromFile().then(() => {
+    displayCurrentTask();
+  });
 }
 
 // Display the current task

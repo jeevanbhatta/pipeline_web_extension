@@ -1,94 +1,130 @@
-// Upload recording and metadata to Google Drive
+// Save recording locally
 function uploadRecording(blob, metadata) {
   return new Promise((resolve, reject) => {
     // First, save task completion status locally
     saveTaskCompletion(metadata.taskId, metadata)
       .then(() => {
-        // Then upload the video file to Google Drive
-        return uploadToDrive(blob, metadata);
+        // Then save the recording to local storage
+        return saveRecordingLocally(blob, metadata);
       })
       .then(fileId => {
-        console.log('File uploaded successfully, ID:', fileId);
+        console.log('Recording saved locally with ID:', fileId);
         resolve(fileId);
       })
       .catch(error => {
-        console.error('Error in upload process:', error);
+        console.error('Error in save process:', error);
         reject(error);
       });
   });
 }
 
-// Upload file to Google Drive
-function uploadToDrive(blob, metadata) {
+// Save recording to browser's local storage
+function saveRecordingLocally(blob, metadata) {
   return new Promise((resolve, reject) => {
-    // Get auth token
-    chrome.runtime.sendMessage({action: 'getAuthToken'}, function(response) {
-      if (!response || !response.token) {
-        reject(new Error('Not authenticated'));
-        return;
-      }
+    // Create a unique ID for this recording
+    const recordingId = `recording_${metadata.taskId}_${new Date().getTime()}`;
+    
+    // Convert the blob to a base64 string
+    const reader = new FileReader();
+    reader.onloadend = function() {
+      // Get the base64 data URL
+      const base64data = reader.result;
       
-      const token = response.token;
+      // Data to store
+      const recordingData = {
+        id: recordingId,
+        blob: base64data,
+        metadata: metadata,
+        savedAt: new Date().toISOString()
+      };
       
-      // Create file name based on task and timestamp
-      const fileName = `Task_${metadata.taskId}_${new Date().toISOString().replace(/:/g, '-')}.webm`;
-      
-      // Create metadata file content
-      const metadataContent = JSON.stringify(metadata, null, 2);
-      
-      // First upload the video file
-      uploadFile(blob, fileName, 'video/webm', token)
-        .then(fileId => {
-          // Then upload the metadata file
-          const metadataBlob = new Blob([metadataContent], {type: 'application/json'});
-          const metadataFileName = fileName.replace('.webm', '_metadata.json');
-          return uploadFile(metadataBlob, metadataFileName, 'application/json', token)
-            .then(metadataFileId => {
-              // Return video file ID
-              resolve(fileId);
-            });
-        })
-        .catch(error => {
-          reject(error);
+      // Save to chrome.storage.local
+      // Note: This may fail for large recordings due to storage limits
+      chrome.storage.local.get('recordings', function(result) {
+        const recordings = result.recordings || [];
+        recordings.push(recordingData);
+        
+        chrome.storage.local.set({ recordings: recordings }, function() {
+          if (chrome.runtime.lastError) {
+            console.error('Storage error:', chrome.runtime.lastError);
+            reject(chrome.runtime.lastError);
+          } else {
+            // Also try to save this specific recording to a downloadable file
+            try {
+              const downloadUrl = URL.createObjectURL(blob);
+              const fileName = `Task_${metadata.taskId}_${new Date().toISOString().replace(/:/g, '-')}.webm`;
+              
+              // Create a metadata file
+              const metadataBlob = new Blob([JSON.stringify(metadata, null, 2)], {type: 'application/json'});
+              const metadataUrl = URL.createObjectURL(metadataBlob);
+              
+              // Set these URLs for download in the UI
+              window.recordingDownloadUrl = {
+                video: { url: downloadUrl, fileName: fileName },
+                metadata: { url: metadataUrl, fileName: fileName.replace('.webm', '_metadata.json') }
+              };
+              
+              resolve(recordingId);
+            } catch (e) {
+              console.warn('Could not create download URL, but recording was saved to storage:', e);
+              resolve(recordingId);
+            }
+          }
         });
-    });
+      });
+    };
+    
+    reader.onerror = function() {
+      reject(new Error('Failed to read the recording blob'));
+    };
+    
+    reader.readAsDataURL(blob);
   });
 }
 
-// Helper function to upload a file to Google Drive
-function uploadFile(blob, fileName, mimeType, token) {
-  return new Promise((resolve, reject) => {
-    // First create the file metadata
-    const metadata = {
-      name: fileName,
-      mimeType: mimeType
-    };
+// Check if there are too many recordings and clean up if needed
+function cleanupOldRecordings() {
+  chrome.storage.local.get('recordings', function(result) {
+    const recordings = result.recordings || [];
     
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'}));
-    form.append('file', blob);
-    
-    fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
-      body: form
-    })
-    .then(response => {
-      if (!response.ok) {
-        return response.text().then(text => {
-          throw new Error(`Upload failed: ${response.status} ${text}`);
-        });
-      }
-      return response.json();
-    })
-    .then(data => {
-      resolve(data.id);
-    })
-    .catch(error => {
-      console.error('Upload error:', error);
-      reject(error);
-    });
+    // If we have more than 5 recordings, remove the oldest ones
+    if (recordings.length > 5) {
+      const sortedRecordings = recordings.sort((a, b) => 
+        new Date(a.savedAt) - new Date(b.savedAt)
+      );
+      
+      const recordingsToKeep = sortedRecordings.slice(-5); // Keep the 5 most recent
+      
+      chrome.storage.local.set({ recordings: recordingsToKeep }, function() {
+        console.log('Cleaned up old recordings, keeping the 5 most recent ones');
+      });
+    }
   });
+}
+
+// Initialize cleanup on module load
+cleanupOldRecordings();
+
+// Helper function to download current recording
+function downloadCurrentRecording() {
+  if (window.recordingDownloadUrl) {
+    // Create and trigger download links
+    const videoLink = document.createElement('a');
+    videoLink.href = window.recordingDownloadUrl.video.url;
+    videoLink.download = window.recordingDownloadUrl.video.fileName;
+    document.body.appendChild(videoLink);
+    videoLink.click();
+    document.body.removeChild(videoLink);
+    
+    // Also download metadata
+    const metadataLink = document.createElement('a');
+    metadataLink.href = window.recordingDownloadUrl.metadata.url;
+    metadataLink.download = window.recordingDownloadUrl.metadata.fileName;
+    document.body.appendChild(metadataLink);
+    metadataLink.click();
+    document.body.removeChild(metadataLink);
+    
+    return true;
+  }
+  return false;
 }

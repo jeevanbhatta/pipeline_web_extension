@@ -166,6 +166,9 @@ function submitRecording() {
       document.getElementById('status-message').textContent = 'Recording submitted';
       document.getElementById('timer').style.display = 'none';
       
+      // Dispatch custom event to enable download button
+      document.dispatchEvent(new CustomEvent('recordingSubmitted'));
+      
       hideLoadingOverlay();
     })
     .catch(error => {

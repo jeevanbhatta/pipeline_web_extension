@@ -1,0 +1,8 @@
+# Ignore sensitive environment files
+.env
+
+# Ignore build directory
+build/
+
+# Ignore any temporary files
+*.tmp
